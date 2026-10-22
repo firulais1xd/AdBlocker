@@ -43,6 +43,18 @@ class AdBlockVpnService : VpnService() {
         @Volatile var isRunning = false
             private set
         val blockedCount = AtomicLong(0)
+
+        /** Últimos dominios consultados (más reciente primero): para diagnosticar qué falta bloquear. */
+        data class LogEntry(val time: Long, val domain: String, val blocked: Boolean)
+        private const val LOG_MAX = 300
+        val recent = java.util.concurrent.ConcurrentLinkedDeque<LogEntry>()
+
+        private fun log(domain: String, blocked: Boolean) {
+            val last = recent.peekFirst()
+            if (last != null && last.domain == domain && last.blocked == blocked) return // evita repetidos seguidos
+            recent.addFirst(LogEntry(System.currentTimeMillis(), domain, blocked))
+            while (recent.size > LOG_MAX) recent.pollLast()
+        }
     }
 
     private var tun: ParcelFileDescriptor? = null
@@ -119,8 +131,10 @@ class AdBlockVpnService : VpnService() {
             val resp = DnsPackets.blockedResponse(dns) ?: return
             write(output, DnsPackets.buildIpv4UdpResponse(pkt, ihl, resp))
             blockedCount.incrementAndGet()
+            log(name, true)
             Log.d(TAG, "Bloqueado: $name")
         } else {
+            log(name, false)
             forwarders?.execute { forward(pkt, ihl, dns, output) }
         }
     }

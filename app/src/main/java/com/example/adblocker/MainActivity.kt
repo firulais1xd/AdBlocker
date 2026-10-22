@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
             if (AdBlockVpnService.isRunning) stopVpn() else requestVpn()
         }
         findViewById<Button>(R.id.updateList).setOnClickListener { updateList() }
+        findViewById<Button>(R.id.showLog).setOnClickListener { showLog() }
 
         if (Build.VERSION.SDK_INT >= 33) {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -90,6 +91,32 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, getString(R.string.list_updated, Blocklist.size), Toast.LENGTH_SHORT).show()
             }
         }.start()
+    }
+
+    private fun showLog() {
+        val fmt = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+        val entries = AdBlockVpnService.recent.toList()
+        val text = if (entries.isEmpty()) getString(R.string.log_empty)
+        else entries.joinToString("\n") {
+            "${fmt.format(java.util.Date(it.time))}  ${if (it.blocked) "🚫" else "✅"} ${it.domain}"
+        }
+        val view = TextView(this).apply {
+            this.text = text
+            setTextIsSelectable(true)
+            textSize = 12f
+            setPadding(48, 24, 48, 24)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.log_title)
+            .setView(android.widget.ScrollView(this).apply { addView(view) })
+            .setPositiveButton(R.string.copy) { _, _ ->
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("AdBlocker log", text))
+                Toast.makeText(this, R.string.copied, Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton(R.string.clear) { _, _ -> AdBlockVpnService.recent.clear() }
+            .setNegativeButton(R.string.close, null)
+            .show()
     }
 
     private fun refreshUi() {

@@ -9,6 +9,13 @@
     <string name="update_list">Actualizar lista de bloqueo</string>
     <string name="updating">Descargando lista…</string>
     <string name="list_updated">Lista actualizada: %1$d dominios</string>
+    <string name="show_log">Ver registro de dominios</string>
+    <string name="log_title">Últimos dominios (🚫 bloqueado, ✅ permitido)</string>
+    <string name="log_empty">Aún no hay consultas. Activa el bloqueador y usa otras apps.</string>
+    <string name="copy">Copiar</string>
+    <string name="copied">Registro copiado</string>
+    <string name="clear">Borrar</string>
+    <string name="close">Cerrar</string>
     <string name="vpn_denied">Se necesita el permiso de VPN para bloquear anuncios</string>
     <string name="channel_name">Bloqueador activo</string>
     <string name="notif_title">AdBlocker activo</string>
