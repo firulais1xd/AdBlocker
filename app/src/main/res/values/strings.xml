@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">AdBlocker</string>
+    <string name="start">Activar</string>
+    <string name="stop">Desactivar</string>
+    <string name="status_on">Protección activa</string>
+    <string name="status_off">Protección desactivada</string>
+    <string name="blocked_count">Anuncios bloqueados en esta sesión: %1$d</string>
+    <string name="list_size">Dominios en la lista: %1$d</string>
+    <string name="update_list">Actualizar lista de bloqueo</string>
+    <string name="updating">Descargando lista…</string>
+    <string name="list_updated">Lista actualizada: %1$d dominios</string>
+    <string name="vpn_denied">Se necesita el permiso de VPN para bloquear anuncios</string>
+    <string name="channel_name">Bloqueador activo</string>
+    <string name="notif_title">AdBlocker activo</string>
+    <string name="notif_text">Bloqueando anuncios en todas las apps</string>
+    <string name="hint">Usa una VPN local: tu tráfico no sale a ningún servidor nuestro.\nPara que funcione, desactiva el “DNS privado” en Ajustes › Red.</string>
+</resources>

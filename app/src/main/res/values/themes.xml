@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.AdBlocker" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#2E7D32</item>
+    </style>
+
+    <color name="on">#2E7D32</color>
+    <color name="off">#C62828</color>
+</resources>
