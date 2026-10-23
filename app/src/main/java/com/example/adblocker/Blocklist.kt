@@ -13,24 +13,46 @@ import java.net.URL
  */
 object Blocklist {
     private const val TAG = "Blocklist"
-    private const val CACHE_FILE = "hosts.txt"
-    private const val MAX_AGE_MS = 7L * 24 * 60 * 60 * 1000 // 7 días
+    private const val MAX_AGE_MS = 3L * 24 * 60 * 60 * 1000 // 3 días
 
-    // Lista pública y mantenida de anuncios + malware (formato hosts)
-    const val SOURCE_URL =
-        "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+    /** Listas públicas y mantenidas. Se aceptan formato hosts ("0.0.0.0 dominio") o un dominio por línea. */
+    private val SOURCES = listOf(
+        // HaGeZi Pro: muy completa para anuncios dentro de apps móviles (bloquea también subdominios)
+        "hagezi.txt" to "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro-onlydomains.txt",
+        // StevenBlack: anuncios + malware
+        "stevenblack.txt" to "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+    )
 
-    // Lista mínima incluida en la app, usada hasta que se descargue la completa
+    // Redes de anuncios de apps móviles; siempre activas aunque no se haya descargado nada
     private val BUILT_IN = setOf(
-        "doubleclick.net", "googlesyndication.com", "googleadservices.com",
-        "googletagservices.com", "admob.com", "app-measurement.com",
-        "adservice.google.com", "applovin.com", "applvn.com", "unityads.unity3d.com",
-        "ads.mopub.com", "adcolony.com", "vungle.com", "inmobi.com", "chartboost.com",
-        "supersonicads.com", "startappservice.com", "an.facebook.com",
-        "ads.tiktok.com", "ads-api.tiktok.com", "adnxs.com", "taboola.com",
-        "outbrain.com", "criteo.com", "pubmatic.com", "rubiconproject.com",
-        "moatads.com", "amazon-adsystem.com", "mintegral.com", "pangle.io",
-        "pangolin-sdk-toutiao.com", "bytedance-ads.com"
+        // Google
+        "doubleclick.net", "googlesyndication.com", "googleadservices.com", "googletagservices.com",
+        "admob.com", "app-measurement.com", "adservice.google.com", "pagead2.googlesyndication.com",
+        "googleads.g.doubleclick.net", "imasdk.googleapis.com",
+        // AppLovin / MAX
+        "applovin.com", "applvn.com", "applovin.net",
+        // Unity Ads
+        "unityads.unity3d.com", "unityads.unity.com", "ads.prd.ie.internal.unity3d.com",
+        // IronSource / LevelPlay
+        "supersonicads.com", "ironsrc.com", "ironsrc.mobi", "ironsrc.net",
+        // Mintegral
+        "mintegral.com", "mintegral.net", "rayjump.com", "mtgglobals.com",
+        // Pangle / TikTok / ByteDance
+        "pangle.io", "pangle.cn", "pangolin-sdk-toutiao.com", "pangolin-sdk-toutiao-b.com",
+        "pglstatp-toutiao.com", "byteoversea.com", "bytedance-ads.com", "ads.tiktok.com",
+        "ads-api.tiktok.com", "analytics.tiktok.com",
+        // Meta Audience Network
+        "an.facebook.com",
+        // Vungle / Liftoff, Moloco, InMobi, Chartboost, AdColony, Fyber, StartApp, Bigo
+        "vungle.com", "liftoff.io", "liftoff-creatives.io", "moloco.com", "inmobi.com",
+        "inmobicdn.net", "chartboost.com", "adcolony.com", "fyber.com", "inner-active.mobi",
+        "startappservice.com", "startapp.com", "bigossp.com", "bigo.sg",
+        // Otras redes comunes en apps de manga/anime
+        "adsterra.com", "propellerads.com", "popads.net", "popcash.net", "exoclick.com",
+        "juicyads.com", "trafficjunky.net", "onclickads.net", "adnxs.com", "taboola.com",
+        "outbrain.com", "criteo.com", "pubmatic.com", "rubiconproject.com", "openx.net",
+        "moatads.com", "amazon-adsystem.com", "smaato.net", "yandexadexchange.net",
+        "mobfox.com", "tapjoy.com"
     )
 
     @Volatile
@@ -49,32 +71,43 @@ object Blocklist {
         }
     }
 
-    /** Carga la lista guardada; si no existe o es vieja, la descarga. Llamar fuera del hilo principal. */
-    fun loadOrUpdate(context: Context, forceDownload: Boolean = false) {
-        val file = File(context.filesDir, CACHE_FILE)
-        val stale = !file.exists() || System.currentTimeMillis() - file.lastModified() > MAX_AGE_MS
-        if (forceDownload || stale) {
-            try {
-                download(file)
-            } catch (e: Exception) {
-                Log.w(TAG, "No se pudo descargar la lista: ${e.message}")
-            }
-        }
-        if (file.exists()) {
-            val parsed = parse(file.readLines())
-            if (parsed.isNotEmpty()) domains = parsed + BUILT_IN
-        }
-        Log.i(TAG, "Dominios bloqueados cargados: ${domains.size}")
+    /** Carga rápida desde los archivos ya descargados (sin red). */
+    fun loadCached(context: Context) {
+        val files = SOURCES.map { File(context.filesDir, it.first) }.filter { it.exists() }
+        if (files.isEmpty()) return
+        val result = HashSet<String>(300_000)
+        files.forEach { parseInto(it, result) }
+        result.addAll(BUILT_IN)
+        domains = result
+        Log.i(TAG, "Dominios cargados desde caché: ${result.size}")
     }
 
-    private fun download(target: File) {
-        val conn = URL(SOURCE_URL).openConnection() as HttpURLConnection
+    /** Descarga las listas viejas o faltantes y recarga. Llamar fuera del hilo principal. */
+    fun loadOrUpdate(context: Context, forceDownload: Boolean = false) {
+        var changed = false
+        for ((name, url) in SOURCES) {
+            val file = File(context.filesDir, name)
+            val stale = !file.exists() || System.currentTimeMillis() - file.lastModified() > MAX_AGE_MS
+            if (forceDownload || stale) {
+                try {
+                    download(url, file); changed = true
+                } catch (e: Exception) {
+                    Log.w(TAG, "No se pudo descargar $name: ${e.message}")
+                }
+            }
+        }
+        if (changed || domains === BUILT_IN) loadCached(context)
+    }
+
+    private fun download(url: String, target: File) {
+        val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 15_000
-        conn.readTimeout = 30_000
+        conn.readTimeout = 60_000
         try {
             if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
-            val tmp = File(target.parentFile, "$CACHE_FILE.tmp")
+            val tmp = File(target.parentFile, "${target.name}.tmp")
             conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+            if (tmp.length() < 1000) throw IllegalStateException("archivo vacío")
             tmp.renameTo(target)
         } finally {
             conn.disconnect()
@@ -85,20 +118,21 @@ object Blocklist {
         "localhost", "localhost.localdomain", "local", "broadcasthost",
         "ip6-localhost", "ip6-loopback", "0.0.0.0"
     )
+    private val SPACES = Regex("\\s+")
 
-    private fun parse(lines: List<String>): Set<String> {
-        val result = HashSet<String>(lines.size)
-        for (raw in lines) {
-            val line = raw.substringBefore('#').trim()
-            if (line.isEmpty()) continue
-            val parts = line.split(Regex("\\s+"))
-            val host = when {
-                parts.size >= 2 && (parts[0] == "0.0.0.0" || parts[0] == "127.0.0.1") -> parts[1]
-                parts.size == 1 -> parts[0]
-                else -> continue
-            }.lowercase()
-            if (host !in IGNORED && host.contains('.')) result.add(host)
+    private fun parseInto(file: File, out: MutableSet<String>) {
+        file.useLines { lines ->
+            for (raw in lines) {
+                val line = raw.substringBefore('#').trim()
+                if (line.isEmpty()) continue
+                val parts = line.split(SPACES)
+                val host = when {
+                    parts.size >= 2 && (parts[0] == "0.0.0.0" || parts[0] == "127.0.0.1") -> parts[1]
+                    parts.size == 1 -> parts[0].removePrefix("*.")
+                    else -> continue
+                }.lowercase()
+                if (host !in IGNORED && host.contains('.')) out.add(host)
+            }
         }
-        return result
     }
 }

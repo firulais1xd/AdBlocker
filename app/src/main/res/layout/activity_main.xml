@@ -28,6 +28,19 @@
         android:text="@string/status_off"
         android:textSize="18sp" />
 
+    <TextView
+        android:id="@+id/warning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:background="#33C62828"
+        android:gravity="center"
+        android:padding="12dp"
+        android:text="@string/private_dns_warning"
+        android:textColor="#C62828"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
     <Button
         android:id="@+id/toggle"
         android:layout_width="220dp"

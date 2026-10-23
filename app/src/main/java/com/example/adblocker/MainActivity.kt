@@ -21,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var counter: TextView
     private lateinit var listInfo: TextView
     private lateinit var toggle: Button
+    private lateinit var warning: TextView
     private val handler = Handler(Looper.getMainLooper())
 
     private val vpnPermission =
@@ -46,6 +47,11 @@ class MainActivity : AppCompatActivity() {
         counter = findViewById(R.id.counter)
         listInfo = findViewById(R.id.listInfo)
         toggle = findViewById(R.id.toggle)
+        warning = findViewById(R.id.warning)
+        warning.setOnClickListener {
+            try { startActivity(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)) } catch (_: Exception) { }
+        }
+        Thread { Blocklist.loadCached(applicationContext) }.start()
 
         toggle.setOnClickListener {
             if (AdBlockVpnService.isRunning) stopVpn() else requestVpn()
@@ -126,5 +132,16 @@ class MainActivity : AppCompatActivity() {
         toggle.setText(if (on) R.string.stop else R.string.start)
         counter.text = getString(R.string.blocked_count, AdBlockVpnService.blockedCount.get())
         listInfo.text = getString(R.string.list_size, Blocklist.size)
+        warning.visibility = if (privateDnsStrict()) android.view.View.VISIBLE else android.view.View.GONE
+    }
+
+    /** true si el "DNS privado" está fijado a un servidor: en ese caso Android se salta el bloqueador. */
+    private fun privateDnsStrict(): Boolean {
+        if (Build.VERSION.SDK_INT < 28) return false
+        return try {
+            val cm = getSystemService(android.net.ConnectivityManager::class.java)
+            @Suppress("DEPRECATION")
+            cm.allNetworks.any { cm.getLinkProperties(it)?.privateDnsServerName != null }
+        } catch (_: Exception) { false }
     }
 }

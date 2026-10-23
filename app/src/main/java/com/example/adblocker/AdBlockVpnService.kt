@@ -102,7 +102,9 @@ class AdBlockVpnService : VpnService() {
     }
 
     private fun runLoop(fd: ParcelFileDescriptor) {
-        Blocklist.loadOrUpdate(applicationContext)
+        // Carga rápida desde caché y actualización en segundo plano, para no cortar internet mientras descarga
+        Blocklist.loadCached(applicationContext)
+        Thread({ Blocklist.loadOrUpdate(applicationContext) }, "blocklist-update").start()
         val input = FileInputStream(fd.fileDescriptor)
         val output = FileOutputStream(fd.fileDescriptor)
         val buf = ByteArray(32767)
