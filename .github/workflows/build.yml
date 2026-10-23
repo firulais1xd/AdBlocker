@@ -3,6 +3,8 @@ name: Compilar APK
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 permissions:
@@ -29,10 +31,16 @@ jobs:
       - name: Renombrar APK
         run: cp app/build/outputs/apk/debug/app-debug.apk AdBlocker.apk
 
+      - name: Notas de la versión (primera entrada de CHANGELOG.md)
+        run: |
+          awk '/^## /{n++} n==1' CHANGELOG.md | sed '/^---$/d' > NOTAS.md
+          printf '\n---\nDescarga **AdBlocker.apk** e instálalo encima de la versión anterior.\nCommit: %s\n' "$GITHUB_SHA" >> NOTAS.md
+          cat NOTAS.md
+
       - name: Publicar en Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: AdBlocker (compilación ${{ github.run_number }})
-          body: Descarga AdBlocker.apk e instálalo en tu teléfono.
+          body_path: NOTAS.md
           files: AdBlocker.apk
